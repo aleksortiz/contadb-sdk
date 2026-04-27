@@ -60,10 +60,10 @@ dev = [
 
 [project.urls]
 Homepage = "https://contadb.mx"
-Documentation = "https://github.com/aosystems/contadb-sdk#readme"
-Repository = "https://github.com/aosystems/contadb-sdk"
-Issues = "https://github.com/aosystems/contadb-sdk/issues"
-Changelog = "https://github.com/aosystems/contadb-sdk/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/aleksortiz/contadb-sdk#readme"
+Repository = "https://github.com/aleksortiz/contadb-sdk"
+Issues = "https://github.com/aleksortiz/contadb-sdk/issues"
+Changelog = "https://github.com/aleksortiz/contadb-sdk/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "src/contadb_sdk/_version.py"
