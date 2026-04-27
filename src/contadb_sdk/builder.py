@@ -37,6 +37,9 @@ from .catalogs import (
 from .complementos.base import Complemento
 from .exceptions import ValidationError
 from .models import (
+    MAX_CONCEPTOS_POR_CFDI,
+    MAX_IMPORTE_SAT,
+    CfdiRelacionados,
     Concepto,
     Emisor,
     ExportacionStr,
@@ -182,6 +185,7 @@ class CFDIBuilder:
         exportacion: ExportacionStr = "01",
         condiciones_pago: str | None = None,
         informacion_global: InformacionGlobal | None = None,
+        cfdi_relacionados: list[CfdiRelacionados] | None = None,
     ) -> None:
         if not isinstance(emisor, Emisor):
             raise ValidationError("emisor debe ser una instancia de Emisor")
@@ -214,6 +218,31 @@ class CFDIBuilder:
                 tipo_cambio=tipo_cambio,
             )
 
+        # Validación cruzada InformacionGlobal ↔ receptor genérico (XAXX010101000):
+        # ambos lados de la regla — un CFDI a "Público en general" exige el bloque,
+        # y el bloque solo aplica a ese receptor.
+        if informacion_global is not None and receptor.rfc != "XAXX010101000":
+            raise ValidationError(
+                "informacion_global solo aplica cuando receptor.rfc='XAXX010101000' "
+                "(Público en general)"
+            )
+        if (
+            receptor.rfc == "XAXX010101000"
+            and tipo_comprobante == "I"
+            and informacion_global is None
+        ):
+            raise ValidationError(
+                "El receptor genérico XAXX010101000 (Público en general) exige "
+                "informacion_global en CFDI tipo 'I'"
+            )
+
+        if cfdi_relacionados is not None:
+            for bloque in cfdi_relacionados:
+                if not isinstance(bloque, CfdiRelacionados):
+                    raise ValidationError(
+                        "cfdi_relacionados debe ser una lista de instancias CfdiRelacionados"
+                    )
+
         self.emisor = emisor
         self.receptor = receptor
         self.serie = serie
@@ -228,6 +257,7 @@ class CFDIBuilder:
         self.condiciones_pago = condiciones_pago
         self.lugar_expedicion = lugar_expedicion
         self.informacion_global = informacion_global
+        self.cfdi_relacionados: list[CfdiRelacionados] = list(cfdi_relacionados or [])
 
         self._conceptos: list[Concepto] = []
         self._complementos: list[Complemento] = []
@@ -392,6 +422,21 @@ class CFDIBuilder:
             self.agregar_concepto(c)
         return self
 
+    def agregar_cfdi_relacionado(self, *, tipo_relacion: str, uuids: Iterable[str]) -> CFDIBuilder:
+        """Agrega un bloque ``cfdi:CfdiRelacionados`` al comprobante.
+
+        Útil para emitir un CFDI que sustituye, corrige o referencia uno o más
+        CFDIs previos. ``tipo_relacion`` debe ser una clave válida del catálogo
+        SAT c_TipoRelacion (``"01"`` a ``"07"``); ``uuids`` puede contener uno
+        o más UUIDs de CFDIs previos. El SDK acepta múltiples bloques con
+        distintos ``tipo_relacion`` en el mismo comprobante.
+        """
+        bloque = CfdiRelacionados.model_validate(
+            {"tipo_relacion": tipo_relacion, "uuids": list(uuids)}
+        )
+        self.cfdi_relacionados.append(bloque)
+        return self
+
     def agregar_complemento(self, complemento: Complemento) -> CFDIBuilder:
         """Agrega un complemento (ej. Pagos 2.0) al comprobante.
 
@@ -442,8 +487,19 @@ class CFDIBuilder:
     def _construir_raiz(self, *, cert: Certificado | None) -> bytes:
         if not self._conceptos:
             raise ValidationError("El comprobante debe tener al menos un concepto")
+        if len(self._conceptos) > MAX_CONCEPTOS_POR_CFDI:
+            raise ValidationError(
+                f"El comprobante excede el máximo de {MAX_CONCEPTOS_POR_CFDI} conceptos "
+                f"(tiene {len(self._conceptos)})"
+            )
 
         calculados = [_ConceptoCalculado(c) for c in self._conceptos]
+
+        for c in calculados:
+            if c.importe > MAX_IMPORTE_SAT:
+                raise ValidationError(
+                    f"Importe de concepto excede el tope SAT ({MAX_IMPORTE_SAT}): {c.importe}"
+                )
 
         sub_total = sum((c.importe for c in calculados), Decimal("0"))
         descuento_total = sum(
@@ -461,6 +517,10 @@ class CFDIBuilder:
         )
 
         total = sub_total - descuento_total + total_traslados - total_retenciones
+        if total > MAX_IMPORTE_SAT:
+            raise ValidationError(
+                f"Total del comprobante excede el tope SAT ({MAX_IMPORTE_SAT}): {total}"
+            )
 
         attrs: dict[str, str] = {
             "Version": CFDI_VERSION,
@@ -504,6 +564,14 @@ class CFDIBuilder:
         root.set(f"{{{NS_XSI}}}schemaLocation", " ".join(schema_locs))
         for k, v in attrs.items():
             root.set(k, v)
+
+        # cfdi:CfdiRelacionados (si aplica) — debe ir ANTES de InformacionGlobal y Emisor
+        for bloque in self.cfdi_relacionados:
+            rel_el = etree.SubElement(root, cfdi("CfdiRelacionados"))
+            rel_el.set("TipoRelacion", bloque.tipo_relacion)
+            for uuid_str in bloque.uuids:
+                hijo = etree.SubElement(rel_el, cfdi("CfdiRelacionado"))
+                hijo.set("UUID", uuid_str)
 
         # cfdi:InformacionGlobal (si aplica) — debe ir antes de Emisor
         if self.informacion_global is not None:

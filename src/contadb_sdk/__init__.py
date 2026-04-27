@@ -53,7 +53,7 @@ from .catalogs import (
     Periodicidad,
     TipoComprobante,
 )
-from .client import ContaDBClient
+from .client import RETRY_POLICY_DEFAULT, RETRY_POLICY_NINGUNO, ContaDBClient, RetryPolicy
 from .complementos import (
     Autotransporte,
     CartaPorteBuilder,
@@ -101,6 +101,7 @@ from .exceptions import (
 )
 from .models import (
     CancelacionResult,
+    CfdiRelacionados,
     Concepto,
     Emisor,
     InformacionGlobal,
@@ -118,6 +119,8 @@ __all__ = [
     "MONEDA_MXN",
     "NOMBRE_PUBLICO_GENERAL",
     "REGIMEN_SIN_OBLIGACIONES",
+    "RETRY_POLICY_DEFAULT",
+    "RETRY_POLICY_NINGUNO",
     "RFC_EXTRANJERO",
     "RFC_PUBLICO_GENERAL",
     "USO_PUBLICO_GENERAL",
@@ -132,6 +135,7 @@ __all__ = [
     "Certificado",
     "CertificadoInvalidoError",
     "CertificateError",
+    "CfdiRelacionados",
     "ClientError",
     "Complemento",
     "Concepto",
@@ -162,6 +166,7 @@ __all__ = [
     "Receptor",
     "Remolque",
     "RetencionDR",
+    "RetryPolicy",
     "SaldoInsuficienteError",
     "Seguros",
     "ServerError",

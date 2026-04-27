@@ -22,6 +22,20 @@ ObjetoImpStr = Literal["01", "02", "03", "04", "05", "06", "07", "08"]
 PeriodicidadStr = Literal["01", "02", "03", "04", "05"]
 MotivoCancelacion = Literal["01", "02", "03", "04"]
 
+# Catálogo c_TipoRelacion (CfdiRelacionados):
+# 01 Nota de crédito, 02 Nota de débito, 03 Devolución, 04 Sustitución,
+# 05 Traslado facturado previamente, 06 Factura por traslados previos,
+# 07 CFDI por aplicación de anticipo.
+TipoRelacionStr = Literal["01", "02", "03", "04", "05", "06", "07"]
+
+# Topes SAT (CFDI 4.0). El SAT acepta hasta 18 dígitos en total para importes
+# pero los anexos de control limitan a 12 enteros + 6 decimales. Aplicamos un
+# tope conservador de 999,999,999.99 (10 enteros + 2 decimales) que cubre el
+# 99.9% de los casos reales y es lo que la mayoría de PACs aceptan sin marcar
+# advertencias.
+MAX_IMPORTE_SAT = Decimal("999999999.99")
+MAX_CONCEPTOS_POR_CFDI = 1000
+
 
 def _formato_uuid(v: str) -> str:
     """Valida y normaliza un UUID v4 a minúsculas con guiones."""
@@ -138,6 +152,35 @@ class Concepto(_StrictModel):
         return self
 
 
+class CfdiRelacionados(_StrictModel):
+    """Bloque ``cfdi:CfdiRelacionados`` — referencia a CFDIs previos.
+
+    Cada CFDI puede tener cero o más bloques ``CfdiRelacionados``; cada uno
+    agrupa varios UUIDs bajo un mismo ``tipo_relacion`` (catálogo SAT
+    c_TipoRelacion):
+
+    - ``"01"`` Nota de crédito de los documentos relacionados.
+    - ``"02"`` Nota de débito de los documentos relacionados.
+    - ``"03"`` Devolución de mercancía sobre facturas o traslados previos.
+    - ``"04"`` Sustitución de los CFDI previos (uso típico tras cancelar
+      con motivo "01").
+    - ``"05"`` Traslados de mercancías facturados previamente.
+    - ``"06"`` Factura generada por los traslados previos.
+    - ``"07"`` CFDI por aplicación de anticipo.
+    """
+
+    tipo_relacion: TipoRelacionStr
+    uuids: list[str] = Field(min_length=1)
+
+    @field_validator("uuids")
+    @classmethod
+    def _validar_uuids(cls, value: list[str]) -> list[str]:
+        normalizados = [_formato_uuid(v) for v in value]
+        if len(set(normalizados)) != len(normalizados):
+            raise ValueError("CfdiRelacionados no admite UUIDs duplicados en el mismo bloque")
+        return normalizados
+
+
 class InformacionGlobal(_StrictModel):
     """Bloque cfdi:InformacionGlobal — requerido para CFDI a "Público en general".
 
@@ -187,7 +230,10 @@ class CancelacionResult(BaseModel):
 
 
 __all__ = [
+    "MAX_CONCEPTOS_POR_CFDI",
+    "MAX_IMPORTE_SAT",
     "CancelacionResult",
+    "CfdiRelacionados",
     "Concepto",
     "Emisor",
     "ExportacionStr",
@@ -199,4 +245,5 @@ __all__ = [
     "Receptor",
     "TimbradoResult",
     "TipoComprobanteStr",
+    "TipoRelacionStr",
 ]

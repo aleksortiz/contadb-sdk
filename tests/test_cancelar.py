@@ -10,6 +10,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from contadb_sdk import (
+    RETRY_POLICY_NINGUNO,
     APIError,
     CancelacionResult,
     Certificado,
@@ -41,7 +42,7 @@ CANCEL_OK = {
 
 @pytest.fixture
 def client() -> ContaDBClient:
-    return ContaDBClient(api_token="cdb_TEST", base_url=BASE)
+    return ContaDBClient(api_token="cdb_TEST", base_url=BASE, retry_policy=RETRY_POLICY_NINGUNO)
 
 
 class TestCancelarHappyPath:

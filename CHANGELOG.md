@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-04-27
+
+### Added
+- **`CfdiRelacionados`**: nuevo modelo Pydantic y soporte en `CFDIBuilder` para emitir `<cfdi:CfdiRelacionados>` en el comprobante (catálogo SAT c_TipoRelacion `"01"`–`"07"`). Habilita CFDIs sustituto/nota de crédito/devolución que referencian uno o varios UUIDs previos. Acepta múltiples bloques con distintos `tipo_relacion` por comprobante. API fluida: `builder.agregar_cfdi_relacionado(tipo_relacion=..., uuids=[...])`.
+- **Reintentos automáticos**: `ContaDBClient` reintenta en errores transitorios (HTTP 429, 500, 502, 503, 504 y fallos de red) con backoff exponencial + jitter. Configurable vía `RetryPolicy(max_intentos=3, backoff_factor=0.5, backoff_max=30.0, ...)`. Honra `Retry-After` (segundos o HTTP-date). Cada reintento reusa la misma `Idempotency-Key`, así que es seguro. Para deshabilitar usar `RETRY_POLICY_NINGUNO`.
+- **Logging estructurado**: el SDK ahora emite eventos vía `logging.getLogger("contadb_sdk")` (request, status, decisiones de reintento). No emite contenido sensible (token, llave privada, contraseña, XML).
+- **Validación de Content-Type**: si el servidor responde con un Content-Type que no incluye `json` (típico cuando un balanceador devuelve HTML), el SDK levanta `ServerError` antes de intentar parsear, con un extracto del cuerpo en el mensaje.
+- **Validación cruzada `InformacionGlobal` ↔ receptor genérico**: el receptor `XAXX010101000` exige `informacion_global` en CFDI tipo `"I"`, y `informacion_global` solo se acepta cuando el receptor es `XAXX010101000`. Detecta inconsistencias antes de timbrar.
+- **Topes SAT en el builder**: rechaza CFDIs con más de 1000 conceptos (`MAX_CONCEPTOS_POR_CFDI`) o con importes que excedan 999,999,999.99 (`MAX_IMPORTE_SAT`).
+
+### Changed
+- `ContaDBClient.__init__` ahora acepta `retry_policy: RetryPolicy | None`. Por defecto se aplica `RETRY_POLICY_DEFAULT` (3 intentos, backoff exponencial). Para preservar el comportamiento anterior (sin reintentos), pasar `retry_policy=RETRY_POLICY_NINGUNO`.
+- `CLAUDE.md` actualizado para reflejar los nombres reales en español del API público (`Certificado.firmar`, `Certificado.desde_bytes`, `_verificar_par_de_llaves`, `_calcular_impuestos`, `_parsear_respuesta`, `excepcion_para_codigo`, etc.).
+- `.gitignore` ahora excluye archivos sueltos en la raíz (`*.xml`, `probar_*.py`, `scratch_*.py`) para evitar que pruebas locales se cuelen al repositorio o al wheel publicado.
+
+### Removed
+- Archivos sueltos en la raíz (`probar_watm_raqn.py`, `watm_raqn_firmado.xml`) que eran scratch de pruebas locales y no debían estar en el repo.
+
+[1.1.0]: https://github.com/aosystems/contadb-sdk/releases/tag/v1.1.0
+
 ## [1.0.0] - 2026-04-27
 
 ### Added

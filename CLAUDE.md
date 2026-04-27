@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `contadb-sdk` is the official Python SDK for building, signing, and stamping (timbrar) Mexican CFDI 4.0 invoices against the public **ContaDB** API (`https://api.contadb.com`). It is published to PyPI as `contadb-sdk` and is consumed by third-party integrators — not by the AOSystems Invoice Agent backend in the parent directory. Treat this repo as an independent library: it has its own `.git`, its own release cycle, and is published from `dist/`.
 
-The SDK is sync-only (HTTP via `httpx.Client`); async support is planned for v1.1.
+The SDK is sync-only (HTTP via `httpx.Client`); async support is planned for a future version. Logging goes through the `contadb_sdk` standard `logging` logger — no sensitive content (token, llave privada, contraseña) is ever emitted; only request paths, status codes, and retry decisions.
 
 ## Development Commands
 
@@ -44,12 +44,12 @@ CI matrix: Python 3.10, 3.11, 3.12, 3.13 (`.github/workflows/ci.yml`). The minim
 
 ### Pipeline: build → cadena → sign → timbrar
 
-The CFDI flow is a strict 4-step pipeline. Each step is a separate module so it can be unit-tested in isolation:
+The CFDI flow is a strict 4-step pipeline. Each step is a separate module so it can be unit-tested in isolation. Public class and method names are in Spanish — code samples below use the actual identifiers.
 
-1. **`builder.py` → `CFDIBuilder.build_and_sign(cert)`** — fluent builder. Internally creates `_ConceptoCalculado` per line, computes `Importe = cantidad * valor_unitario`, base, traslados (IVA/IEPS) and retenciones (ISR/IVA/IEPS) via `_compute_taxes()`, then assembles the `cfdi:Comprobante` element with `lxml`. Consolidates `cfdi:Impuestos` grouped by `(Impuesto, TipoFactor, Tasa)` for traslados and by `Impuesto` for retenciones.
+1. **`builder.py` → `CFDIBuilder.construir_y_firmar(cert)`** — fluent builder. Internally creates `_ConceptoCalculado` per line, computes `Importe = cantidad * valor_unitario`, base, traslados (IVA/IEPS) and retenciones (ISR/IVA/IEPS) via `_calcular_impuestos()`, then assembles the `cfdi:Comprobante` element with `lxml`. Consolidates `cfdi:Impuestos` grouped by `(Impuesto, TipoFactor, Tasa)` for traslados and by `Impuesto` for retenciones. Also emits `cfdi:CfdiRelacionados` (one block per `TipoRelacion`) before `cfdi:InformacionGlobal`.
 2. **`cadena.py` → `cadena_original(xml)`** — runs the **official SAT XSLT** (`_xslt/cadenaoriginal_4_0.xslt` + `utilerias.xslt`, bundled into the wheel via `[tool.hatch.build.targets.wheel.force-include]`) to produce the canonical string. The transform is lazy-loaded and module-level cached. **Never inline the XSLT or hand-build the cadena** — the SAT rejects mismatches.
-3. **`signer.py` → `Certificate.sign(cadena)`** — RSA-SHA256 with **PKCS#1 v1.5 padding** (NOT PSS — SAT requires v1.5). `Certificate.from_bytes()` runs `_verify_keypair()` to ensure the `.cer` and `.key` form a real pair before any signing. `no_certificado` decodes the X.509 SerialNumber as 20 ASCII digits (the SAT-specific encoding), falling back to the raw int.
-4. **`client.py` → `ContaDBClient.timbrar(xml)`** — `POST /api/v1/timbrar` with `Authorization: Bearer cdb_...` and an auto-generated `Idempotency-Key` (UUID v4, override per call). Parses the JSON response; on success returns `TimbradoResult`, on error dispatches via `exception_for_code()` to a typed exception.
+3. **`signer.py` → `Certificado.firmar(cadena)`** — RSA-SHA256 with **PKCS#1 v1.5 padding** (NOT PSS — SAT requires v1.5). `Certificado.desde_bytes()` (and `Certificado.cargar` / `Certificado.cargar_pfx`) runs `_verificar_par_de_llaves()` to ensure the `.cer` and `.key` form a real pair before any signing. `no_certificado` decodes the X.509 SerialNumber as 20 ASCII digits (the SAT-specific encoding), falling back to the raw int.
+4. **`client.py` → `ContaDBClient.timbrar(xml)`** — `POST /api/v1/timbrar` with `Authorization: Bearer cdb_...` and an auto-generated `Idempotency-Key` (UUID v4, override per call). Parses the JSON response in `_parsear_respuesta()`; on success returns `TimbradoResult`, on error dispatches via `excepcion_para_codigo()` to a typed exception. Reintenta automáticamente en errores transitorios (429, 5xx, fallos de red) según la `RetryPolicy` configurada — usar `RETRY_POLICY_NINGUNO` para desactivar.
 
 The public surface is re-exported from `__init__.py` — when adding a public symbol, update both the imports and the `__all__` list there.
 
@@ -65,7 +65,7 @@ The public surface is re-exported from `__init__.py` — when adding a public sy
 `ContaDBError` is the root. The hierarchy splits into two branches by *origin*:
 
 - **Local errors** (`BuildError`, `CertificateError`, `ValidationError`, `ConfigurationError`) — raised before any HTTP call.
-- **API errors** (`APIError` and subclasses: `AuthError`, `ClientError`, `QuotaError`, `ServerError`) — raised from `client._parse_response()` based on the JSON `code` field. New API error codes go in `_CODE_MAP` in `exceptions.py`; the `code` class attribute on each subclass is the canonical mapping key.
+- **API errors** (`APIError` and subclasses: `AuthError`, `ClientError`, `QuotaError`, `ServerError`) — raised from `client._parsear_respuesta()` based on the JSON `code` field. New API error codes go in `_CODE_MAP` in `exceptions.py`; the `code` class attribute on each subclass is the canonical mapping key.
 - `RateLimitError.retry_after` and `CuentaBloqueadaError.blocked_until` are extracted from response payload/headers — preserve those constructor signatures when extending.
 
 ### Pydantic models

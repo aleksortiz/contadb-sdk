@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import random
+import time
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from types import TracebackType
@@ -36,7 +40,52 @@ TIMBRAR_PATH = "/api/v1/timbrar"
 CANCELAR_PATH = "/api/v1/cancelar"
 USER_AGENT = f"contadb-sdk-python/{__version__}"
 
+logger = logging.getLogger("contadb_sdk")
+
 _R = TypeVar("_R", TimbradoResult, CancelacionResult)
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """Política de reintentos para requests transitorios.
+
+    El cliente reintenta automáticamente en errores de red (timeouts, DNS,
+    conexiones reseteadas) y en respuestas HTTP 429 y 5xx. No reintenta en
+    4xx no transitorios (auth, validación, saldo) — esos errores son del
+    request del cliente y reintentarlos solo desperdicia tiempo.
+
+    El espaciado entre reintentos es ``backoff_factor * 2^intento`` segundos
+    con ``jitter`` aleatorio uniforme en ``[0, backoff_factor)`` y tope
+    ``backoff_max``. Si el servidor envía ``Retry-After``, se respeta su valor
+    cuando ``respetar_retry_after=True``.
+
+    Reintentar es seguro porque cada request lleva un ``Idempotency-Key``
+    único y el servidor cachea la respuesta para esa clave.
+    """
+
+    max_intentos: int = 3
+    backoff_factor: float = 0.5
+    backoff_max: float = 30.0
+    estatus_a_reintentar: tuple[int, ...] = (429, 500, 502, 503, 504)
+    respetar_retry_after: bool = True
+
+
+#: Política por defecto cuando el usuario no configura una explícita.
+RETRY_POLICY_DEFAULT = RetryPolicy()
+
+
+@dataclass(frozen=True)
+class _DesactivarRetries:
+    """Política sentinela equivalente a 'no reintentar nunca'."""
+
+    max_intentos: int = 1
+    backoff_factor: float = 0.0
+    backoff_max: float = 0.0
+    estatus_a_reintentar: tuple[int, ...] = field(default_factory=tuple)
+    respetar_retry_after: bool = False
+
+
+RETRY_POLICY_NINGUNO = _DesactivarRetries()
 
 
 class ContaDBClient:
@@ -63,6 +112,7 @@ class ContaDBClient:
         base_url: str | None = None,
         timeout: float = 30.0,
         transport: httpx.BaseTransport | None = None,
+        retry_policy: RetryPolicy | _DesactivarRetries | None = None,
     ) -> None:
         if not api_token or not api_token.strip():
             raise ConfigurationError("api_token no puede estar vacío")
@@ -78,6 +128,9 @@ class ContaDBClient:
 
         self._api_token = api_token.strip()
         self._base_url = resolved_base_url
+        self._retry_policy: RetryPolicy | _DesactivarRetries = (
+            retry_policy if retry_policy is not None else RETRY_POLICY_DEFAULT
+        )
         self._http = httpx.Client(
             base_url=resolved_base_url,
             timeout=timeout,
@@ -216,24 +269,110 @@ class ContaDBClient:
     # -- Internos ----------------------------------------------------------
 
     def _post(self, path: str, payload: dict[str, Any], headers: dict[str, str]) -> httpx.Response:
-        try:
-            return self._http.post(path, json=payload, headers=headers)
-        except httpx.TimeoutException as exc:
-            raise ServerError(
-                f"Timeout al contactar ContaDB: {exc}",
-                status_code=None,
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise ServerError(
-                f"Error de red al contactar ContaDB: {exc}",
-                status_code=None,
-            ) from exc
+        """POST con reintentos en errores transitorios (429, 5xx, red).
+
+        Cada intento usa la misma ``Idempotency-Key`` (provista por el caller),
+        de forma que el servidor pueda deduplicar.
+        """
+        policy = self._retry_policy
+        max_intentos = max(1, policy.max_intentos)
+        intento = 0
+        while True:
+            intento += 1
+            logger.debug(
+                "POST %s intento=%d/%d",
+                path,
+                intento,
+                max_intentos,
+            )
+            try:
+                response = self._http.post(path, json=payload, headers=headers)
+            except (httpx.TimeoutException, httpx.HTTPError) as exc:
+                # Error de red — siempre reintenta hasta agotar
+                if intento >= max_intentos:
+                    logger.warning(
+                        "POST %s falló por red tras %d intento(s): %s",
+                        path,
+                        intento,
+                        exc,
+                    )
+                    raise ServerError(
+                        f"Error de red al contactar ContaDB: {exc}",
+                        status_code=None,
+                    ) from exc
+                espera = self._calcular_espera(intento, retry_after_servidor=None)
+                logger.info(
+                    "POST %s error de red (%s) — reintentando en %.2fs",
+                    path,
+                    exc,
+                    espera,
+                )
+                time.sleep(espera)
+                continue
+
+            # Decidir si reintentamos en base al status
+            if response.status_code in policy.estatus_a_reintentar and intento < max_intentos:
+                retry_after_hdr = response.headers.get("retry-after")
+                espera = self._calcular_espera(
+                    intento,
+                    retry_after_servidor=retry_after_hdr if policy.respetar_retry_after else None,
+                )
+                logger.info(
+                    "POST %s status=%d — reintentando en %.2fs (intento %d/%d)",
+                    path,
+                    response.status_code,
+                    espera,
+                    intento,
+                    max_intentos,
+                )
+                time.sleep(espera)
+                continue
+
+            logger.debug("POST %s status=%d", path, response.status_code)
+            return response
+
+    def _calcular_espera(self, intento: int, *, retry_after_servidor: str | None) -> float:
+        """Calcula segundos de espera entre reintentos.
+
+        Si el servidor envió ``Retry-After`` (segundos o HTTP-date), lo respeta;
+        si no, aplica backoff exponencial con jitter.
+        """
+        policy = self._retry_policy
+        if retry_after_servidor:
+            parsed = _parsear_retry_after(None, retry_after_servidor)
+            if parsed is not None:
+                return float(min(parsed, policy.backoff_max))
+        backoff: float = policy.backoff_factor * (2 ** (intento - 1))
+        jitter: float = (
+            random.uniform(0, policy.backoff_factor) if policy.backoff_factor > 0 else 0.0
+        )
+        total: float = backoff + jitter
+        if total > policy.backoff_max:
+            return policy.backoff_max
+        return total
 
     def _parsear_respuesta(
         self,
         response: httpx.Response,
         modelo_exitoso: type[_R],
     ) -> _R:
+        # Validar Content-Type: si el servidor devolvió HTML/texto plano (típico
+        # de errores 502 de un balanceador) lanzamos ServerError antes de
+        # intentar parsear JSON, con un mensaje útil para el usuario.
+        content_type = (response.headers.get("content-type") or "").lower()
+        if content_type and "json" not in content_type:
+            extracto = response.text[:200] if response.text else ""
+            logger.warning(
+                "Respuesta con Content-Type=%r (esperado application/json), status=%d",
+                content_type,
+                response.status_code,
+            )
+            raise ServerError(
+                f"Content-Type inesperado {content_type!r} (HTTP {response.status_code}): "
+                f"{extracto!r}",
+                status_code=response.status_code,
+            )
+
         try:
             data = response.json()
         except ValueError as exc:
@@ -321,4 +460,9 @@ def _parsear_retry_after(payload_value: object, header_value: str | None) -> int
     return None
 
 
-__all__ = ["ContaDBClient"]
+__all__ = [
+    "RETRY_POLICY_DEFAULT",
+    "RETRY_POLICY_NINGUNO",
+    "ContaDBClient",
+    "RetryPolicy",
+]
