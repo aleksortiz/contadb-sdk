@@ -83,7 +83,7 @@ def main() -> None:
         try:
             result = client.timbrar(xml)
         except SaldoInsuficienteError:
-            print("✗ Sin saldo de timbres. Compra más en https://contadb.com/facturacion")
+            print("✗ Sin saldo de timbres. Compra más en https://contadb.mx/facturacion")
             return
         except RateLimitError as e:
             print(f"✗ Rate limit: reintenta en {e.retry_after}s")

@@ -15,7 +15,7 @@ Requiere Python 3.10+.
 Necesitas dos cosas:
 
 ### a) API token de ContaDB
-1. Crea cuenta en [contadb.com](https://contadb.com) y verifica tu email.
+1. Crea cuenta en [contadb.mx](https://contadb.mx) y verifica tu email.
 2. Compra una bolsa de timbres (mínimo 100 / $200 MXN).
 3. En el panel: **Facturación → API Tokens → Generar nuevo token**.
 4. Guarda el token (formato `cdb_...`) — solo se muestra una vez.
@@ -89,7 +89,7 @@ from contadb_sdk import (
 try:
     result = client.timbrar(xml)
 except SaldoInsuficienteError:
-    # Compra más timbres en https://contadb.com/facturacion
+    # Compra más timbres en https://contadb.mx/facturacion
     ...
 except RateLimitError as e:
     # El SDK ya reintentó automáticamente; aquí solo llegas si agotó los intentos.

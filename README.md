@@ -107,7 +107,7 @@ from contadb_sdk import (
 try:
     resultado = client.timbrar(xml)
 except SaldoInsuficienteError:
-    # Comprar más timbres en https://contadb.com/facturacion
+    # Comprar más timbres en https://contadb.mx/facturacion
     ...
 except RateLimitError as e:
     # El SDK ya reintentó automáticamente; aquí solo llegas si agotó los intentos.
@@ -164,12 +164,12 @@ logging.getLogger("contadb_sdk").setLevel(logging.INFO)
 
 ## Configuración
 
-Por defecto el cliente apunta a `https://api.contadb.com`. Puedes cambiarlo:
+Por defecto el cliente apunta a `https://api.contadb.mx`. Puedes cambiarlo:
 
 ```python
 client = ContaDBClient(
     api_token="cdb_xxx",
-    base_url="https://staging.contadb.com",  # o env var CONTADB_BASE_URL
+    base_url="https://staging.contadb.mx",  # o env var CONTADB_BASE_URL
     timeout=60.0,
 )
 ```
@@ -184,7 +184,7 @@ client = ContaDBClient(
 
 ## Cómo obtener un API token
 
-1. Crea cuenta en [contadb.com](https://contadb.com).
+1. Crea cuenta en [contadb.mx](https://contadb.mx).
 2. Ve a **Facturación → API Tokens** y genera uno.
 3. Compra una **bolsa de timbres** (desde 100 timbres / $200 MXN).
 4. Usa el token con este SDK.

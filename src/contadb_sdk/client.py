@@ -35,7 +35,7 @@ from .models import (
 )
 from .signer import Certificado
 
-DEFAULT_BASE_URL = "https://api.contadb.com"
+DEFAULT_BASE_URL = "https://api.contadb.mx"
 TIMBRAR_PATH = "/api/v1/timbrar"
 CANCELAR_PATH = "/api/v1/cancelar"
 USER_AGENT = f"contadb-sdk-python/{__version__}"
@@ -95,7 +95,7 @@ class ContaDBClient:
         api_token: token de API generado en el panel de ContaDB
             (formato ``cdb_...``).
         base_url: URL base del API. Si es None, usa la env var
-            ``CONTADB_BASE_URL`` o el default ``https://api.contadb.com``.
+            ``CONTADB_BASE_URL`` o el default ``https://api.contadb.mx``.
         timeout: timeout en segundos para cada request HTTP.
         transport: transport httpx personalizado (útil para tests).
 

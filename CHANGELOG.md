@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-04-27
+
+### Fixed
+- **URLs corregidas a `contadb.mx`**: el dominio oficial es `.mx`, no `.com`. Afecta:
+  - `DEFAULT_BASE_URL` del `ContaDBClient` (ahora `https://api.contadb.mx`).
+  - `Homepage` y email de contacto en metadatos PyPI.
+  - Referencias en README, docs, ejemplos y tests.
+
+  Si tenías hard-coded `https://api.contadb.com` o la env var `CONTADB_BASE_URL` apuntando a `.com`, actualízala a `.mx`. El default sigue siendo correcto si no la pasaste explícita.
+
+[1.1.1]: https://github.com/aleksortiz/contadb-sdk/releases/tag/v1.1.1
+
 ## [1.1.0] - 2026-04-27
 
 ### Added

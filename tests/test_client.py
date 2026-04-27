@@ -56,12 +56,12 @@ class TestConfiguracion:
     def test_base_url_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("CONTADB_BASE_URL", raising=False)
         c = ContaDBClient(api_token="cdb_x")
-        assert c._base_url == "https://api.contadb.com"
+        assert c._base_url == "https://api.contadb.mx"
 
     def test_base_url_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("CONTADB_BASE_URL", "https://staging.contadb.com")
+        monkeypatch.setenv("CONTADB_BASE_URL", "https://staging.contadb.mx")
         c = ContaDBClient(api_token="cdb_x")
-        assert c._base_url == "https://staging.contadb.com"
+        assert c._base_url == "https://staging.contadb.mx"
 
 
 class TestTimbrarExito:

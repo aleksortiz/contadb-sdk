@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-    { name = "AOSystems", email = "soporte@contadb.com" },
+    { name = "AOSystems", email = "soporte@contadb.mx" },
 ]
 keywords = [
     "cfdi",
@@ -59,7 +59,7 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://contadb.com"
+Homepage = "https://contadb.mx"
 Documentation = "https://github.com/aosystems/contadb-sdk#readme"
 Repository = "https://github.com/aosystems/contadb-sdk"
 Issues = "https://github.com/aosystems/contadb-sdk/issues"

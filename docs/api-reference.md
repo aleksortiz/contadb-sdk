@@ -20,7 +20,7 @@ ContaDBClient(
 | Parámetro       | Tipo                       | Default                       | Descripción |
 |-----------------|----------------------------|-------------------------------|-------------|
 | `api_token`     | `str`                      | —                             | Token API (`cdb_...`) generado en el panel. |
-| `base_url`      | `str \| None`              | env `CONTADB_BASE_URL` o `https://api.contadb.com` | URL base del API. |
+| `base_url`      | `str \| None`              | env `CONTADB_BASE_URL` o `https://api.contadb.mx` | URL base del API. |
 | `timeout`       | `float`                    | `30.0`                        | Timeout en segundos por request. |
 | `transport`     | `httpx.BaseTransport \| None` | `None`                     | Transport personalizado (útil para tests/proxies). |
 | `retry_policy`  | `RetryPolicy \| None`      | `RETRY_POLICY_DEFAULT` (3 intentos) | Política de reintentos en errores transitorios. |
