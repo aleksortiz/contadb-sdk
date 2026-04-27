@@ -1,0 +1,10 @@
+{
+  "fuente": "SAT — c_TipoFigura (Anexo 20, Carta Porte 3.1)",
+  "version": "3.1",
+  "claves": {
+    "01": "Operador",
+    "02": "Propietario",
+    "03": "Arrendatario",
+    "04": "Notificado"
+  }
+}

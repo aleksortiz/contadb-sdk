@@ -1,0 +1,26 @@
+{
+  "fuente": "SAT — c_TipoPermiso (Anexo 20, Carta Porte 3.1)",
+  "version": "3.1",
+  "claves": {
+    "TPAF01": "Autotransporte Federal de carga general",
+    "TPAF02": "Transporte privado de carga",
+    "TPAF03": "Autotransporte Federal de Carga Especializada de materiales y residuos peligrosos",
+    "TPAF04": "Transporte de automóviles sin rodar en vehículo tipo madrina",
+    "TPAF05": "Transporte de carga de gran peso y/o volumen de hasta 90 toneladas",
+    "TPAF06": "Transporte de carga especializada de fondos y valores",
+    "TPAF07": "Transporte de grúas de arrastre y grúas de arrastre y salvamento",
+    "TPAF08": "Autotransporte internacional de carga de largo recorrido",
+    "TPAF09": "Autotransporte internacional de carga especializada de materiales y residuos peligrosos",
+    "TPAF10": "Autotransporte Federal de carga general — franja fronteriza con Estados Unidos",
+    "TPAF11": "Autotransporte Federal de carga especializada — franja fronteriza con Estados Unidos",
+    "TPAF12": "Servicio auxiliar de arrastre en las vías generales de comunicación",
+    "TPAF13": "Servicio auxiliar de servicios de arrastre, arrastre y salvamento, y depósito de vehículos",
+    "TPAF14": "Servicio de paquetería y mensajería en las vías generales de comunicación",
+    "TPAF15": "Transporte especial para el tránsito de grúas industriales con peso máximo de 90 toneladas",
+    "TPAF16": "Servicio federal para empresas comercializadoras de servicios de transporte federal",
+    "TPAF17": "Empresas trasladistas de vehículos nuevos",
+    "TPAF18": "Empresas fabricantes o distribuidoras de vehículos nuevos",
+    "TPAF19": "Autotransporte de configuraciones vehiculares de carga (Camión Unitario)",
+    "TPAF20": "Autotransporte de configuraciones vehiculares de carga (Tractocamión Articulado y Doblemente Articulado)"
+  }
+}
