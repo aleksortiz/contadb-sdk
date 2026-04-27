@@ -87,7 +87,10 @@ print(f"XML timbrado:   {len(resultado.xml_timbrado)} chars")
 - ✅ **Construcción CFDI 4.0** — Builder con API fluida, validación Pydantic, cálculo automático de impuestos.
 - ✅ **Firma RSA-SHA256** — Carga `.cer` + `.key` del SAT, firma cadena original generada con XSLT oficial.
 - ✅ **Cliente HTTP tipado** — Errores mapeados a excepciones específicas (`SaldoInsuficienteError`, `TokenRevocadoError`, etc.).
-- ✅ **Idempotency-Key** — Auto-generado por llamada para resistir reintentos.
+- ✅ **Reintentos automáticos** — Backoff exponencial con jitter en errores 429/5xx/red. Honra `Retry-After`. Idempotency-Key resiste duplicados.
+- ✅ **CFDI relacionados** — Emite bloques `cfdi:CfdiRelacionados` (sustitución, nota de crédito, devolución, etc.).
+- ✅ **Complementos oficiales** — Recepción de Pagos 2.0 y Carta Porte 3.1.
+- ✅ **Cancelación** — `client.cancelar(uuid_cfdi, motivo, certificado, folio_sustitucion=...)` con motivos SAT 01–04.
 - ✅ **100% tipado** — Marcador `py.typed` para inferencia perfecta en IDEs y `mypy --strict`.
 - ✅ **Cero dependencias mágicas** — Solo `pydantic`, `httpx`, `cryptography`, `lxml`.
 
@@ -107,11 +110,56 @@ except SaldoInsuficienteError:
     # Comprar más timbres en https://contadb.com/facturacion
     ...
 except RateLimitError as e:
-    # Esperar e.retry_after segundos
+    # El SDK ya reintentó automáticamente; aquí solo llegas si agotó los intentos.
+    # e.retry_after trae los segundos sugeridos por el servidor.
     ...
 except TokenRevocadoError:
     # Generar un nuevo token
     ...
+```
+
+## Reintentos automáticos
+
+El cliente reintenta solo en errores transitorios (HTTP 429, 500, 502, 503, 504 y fallos de red) con backoff exponencial + jitter. Cada reintento reusa el mismo `Idempotency-Key`, así que es seguro.
+
+```python
+from contadb_sdk import ContaDBClient, RetryPolicy, RETRY_POLICY_NINGUNO
+
+# Default: 3 intentos, backoff_factor=0.5, backoff_max=30s, honra Retry-After.
+client = ContaDBClient(api_token="cdb_xxx")
+
+# Personalizado:
+client = ContaDBClient(
+    api_token="cdb_xxx",
+    retry_policy=RetryPolicy(max_intentos=5, backoff_factor=1.0, backoff_max=60.0),
+)
+
+# Sin reintentos (comportamiento de v1.0):
+client = ContaDBClient(api_token="cdb_xxx", retry_policy=RETRY_POLICY_NINGUNO)
+```
+
+## CFDI sustituto / nota de crédito / devolución
+
+Para emitir un CFDI que referencia uno o varios CFDIs previos (sustitución tras cancelar con motivo 01, nota de crédito, devolución, etc.):
+
+```python
+from contadb_sdk import CFDIBuilder, CfdiRelacionados
+
+builder = CFDIBuilder(...).agregar_cfdi_relacionado(
+    tipo_relacion="04",                 # 04 = Sustitución de los CFDI previos
+    uuids=["550e8400-e29b-41d4-a716-446655440000"],
+)
+```
+
+Catálogo `c_TipoRelacion` SAT: `"01"` nota de crédito, `"02"` nota de débito, `"03"` devolución, `"04"` sustitución, `"05"`–`"07"` traslados/anticipos.
+
+## Logging
+
+El SDK emite eventos vía el logger estándar `contadb_sdk` (request, status, decisiones de reintento). Nunca loguea token, llave privada, contraseña ni XML.
+
+```python
+import logging
+logging.getLogger("contadb_sdk").setLevel(logging.INFO)
 ```
 
 ## Configuración

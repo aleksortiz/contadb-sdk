@@ -92,7 +92,8 @@ except SaldoInsuficienteError:
     # Compra más timbres en https://contadb.com/facturacion
     ...
 except RateLimitError as e:
-    # Espera e.retry_after segundos antes de reintentar
+    # El SDK ya reintentó automáticamente; aquí solo llegas si agotó los intentos.
+    # e.retry_after trae los segundos sugeridos por el servidor.
     ...
 except TokenInvalidoError:
     # El token no existe o tiene formato incorrecto
@@ -106,6 +107,51 @@ except XMLInvalidoError:
 except PACError as e:
     # Error genérico del PAC — revisa e.message
     ...
+```
+
+## 5. Reintentos automáticos
+
+El cliente reintenta solo en errores transitorios (HTTP 429, 5xx y fallos de red) con backoff exponencial. La misma `Idempotency-Key` se reusa entre intentos, así que el servidor deduplica.
+
+```python
+from contadb_sdk import ContaDBClient, RetryPolicy, RETRY_POLICY_NINGUNO
+
+# Default: 3 intentos, backoff 0.5s × 2ⁿ con jitter, tope 30s.
+client = ContaDBClient(api_token="cdb_xxx")
+
+# Más agresivo:
+client = ContaDBClient(
+    api_token="cdb_xxx",
+    retry_policy=RetryPolicy(max_intentos=5, backoff_factor=1.0, backoff_max=60.0),
+)
+
+# Sin reintentos (comportamiento de v1.0):
+client = ContaDBClient(api_token="cdb_xxx", retry_policy=RETRY_POLICY_NINGUNO)
+```
+
+## 6. CFDI sustituto, nota de crédito, devolución
+
+Cuando emites un CFDI que reemplaza o referencia uno previo, agrega un bloque `cfdi:CfdiRelacionados`:
+
+```python
+from contadb_sdk import CFDIBuilder, CfdiRelacionados
+
+builder = CFDIBuilder(...).agregar_cfdi_relacionado(
+    tipo_relacion="04",  # 04 = Sustitución (típico tras cancelar con motivo 01)
+    uuids=["550e8400-e29b-41d4-a716-446655440000"],
+)
+```
+
+Catálogo `c_TipoRelacion`: `"01"` nota de crédito · `"02"` nota de débito · `"03"` devolución · `"04"` sustitución · `"05"`–`"07"` traslados/anticipos.
+
+## 7. Logging
+
+El SDK emite eventos vía el logger estándar `contadb_sdk` (request, status, decisiones de reintento). **Nunca** loguea token, llave privada, contraseña ni XML.
+
+```python
+import logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("contadb_sdk").setLevel(logging.DEBUG)
 ```
 
 ## Siguientes pasos
