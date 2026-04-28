@@ -176,11 +176,11 @@ client = ContaDBClient(
 
 ## Documentación
 
-- [Quickstart](docs/quickstart.md)
-- [Construcción de CFDI](docs/building-cfdi.md)
-- [API Reference](docs/api-reference.md)
-- [Catálogos SAT comunes](docs/catalogos-sat.md)
-- [Ejemplos ejecutables](examples/)
+- [Quickstart](https://github.com/aleksortiz/contadb-sdk/blob/main/docs/quickstart.md)
+- [Construcción de CFDI](https://github.com/aleksortiz/contadb-sdk/blob/main/docs/building-cfdi.md)
+- [API Reference](https://github.com/aleksortiz/contadb-sdk/blob/main/docs/api-reference.md)
+- [Catálogos SAT comunes](https://github.com/aleksortiz/contadb-sdk/blob/main/docs/catalogos-sat.md)
+- [Ejemplos ejecutables](https://github.com/aleksortiz/contadb-sdk/tree/main/examples)
 
 ## Cómo obtener un API token
 
